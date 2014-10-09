@@ -28,11 +28,11 @@ THE SOFTWARE.
 // Version for Digispark http://digistump.com/category/1
 
 // Should be ~ 1300uS
-#define LP_MIN 1200
-#define LP_MAX 1400
+#define LP_MIN 1100
+#define LP_MAX 1500
 // Should be ~ 500uS
-#define SP_MIN 400
-#define SP_MAX 600
+#define SP_MIN 300
+#define SP_MAX 700
 
 #define PIN 0 // From 433Mhz receiver
 
@@ -55,7 +55,7 @@ int read_tx ()
   // In theory preamble is 00001010 but here we don't care if first few
   // bits are garbled as long as it starts with 1010 with the correct
   // pulse timing.
-  int v = 0;
+  byte v = 0;
   do
   {
     v <<= 1;
@@ -133,7 +133,7 @@ int read_tx ()
     Serial.println(val);
   }
 
-  delay(50);
+  delay(50); // Signal is repeated by sensor. if CRC is OK then additional transmissions can be ignored.
   return 0;
 }
  
