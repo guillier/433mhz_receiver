@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
-// Decoder for La Crosse Weather Sensors TX2/TX3/TX4 with or without hygrometer (untested)
+// Decoder for La Crosse Weather Sensors TX2/TX3/TX4 with or without hygrometer
 // Partially based on work by Jean-Paul ROUBELAT - F6FBB http://www.f6fbb.org/domo/sensors/tx3_th.php
 // Data is sent to Serial via the Debugging Library (on pin 2)
 // Version for Digispark http://digistump.com/category/1
