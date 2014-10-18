@@ -12,5 +12,10 @@ RRA:AVERAGE:0.9:288:1826 \
 RRA:MAX:0.9:288:1826
 ```
 
-cf http://www.guillier.org/blog/2014/09/lacrosse-tx2tx3-sensors/ & http://www.guillier.org/blog/2014/09/lacrosse-tx2tx3-sensors-and-digispark/ for more details
+cf 
+
+* http://www.guillier.org/blog/2014/09/lacrosse-tx2tx3-sensors/
+* http://www.guillier.org/blog/2014/09/lacrosse-tx2tx3-sensors-and-digispark/ 
+* http://www.guillier.org/blog/2014/10/lacrosse-digispark-raspberry-pi-roundup/
+for more details and schematic
 
