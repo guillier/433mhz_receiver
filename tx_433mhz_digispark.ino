@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2014 François GUILLIER <dev @ guillier . org>
+Copyright (c) 2015 François GUILLIER <dev @ guillier . org>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -24,21 +24,32 @@ THE SOFTWARE.
 
 // Decoder for La Crosse Weather Sensors TX2/TX3/TX4 with or without hygrometer
 // Partially based on work by Jean-Paul ROUBELAT - F6FBB http://www.f6fbb.org/domo/sensors/tx3_th.php
+// Partially based on work by Pilight http://wiki.pilight.org/doku.php/alecto_ws1700_v7_0
 // Data is sent to Serial via the Debugging Library (on pin 2)
 // Version for Digispark http://digistump.com/category/1
 
-// Should be ~ 1300uS
+// Should be ~ 1300uS (long - high for Lacrosse)
 #define LP_MIN 1100
 #define LP_MAX 1500
-// Should be ~ 500uS
+// Should be ~ 500uS (short - high for Lacrosse)
 #define SP_MIN 300
 #define SP_MAX 700
+// Should be ~ 1900uS (short - low for Alecto)
+#define ASP_MIN 1600
+#define ASP_MAX 2200
+// Should be ~ 3800uS (long - low for Alecto)
+#define ALP_MIN 3200
+#define ALP_MAX 4400
+// Should be ~ 9200uS (end - low for Alecto)
+#define AEP_MIN 8600
+#define AEP_MAX 9800
 
 #define PIN 0 // From 433Mhz receiver
 
 unsigned long dur; // pulse duration
-byte nibble[11];
-byte type; // data = temperature or humidity
+byte nibble[11]; // Lacrosse
+byte bits[34]; // Alecto
+byte type; // data = temperature or humidity (Lacrosse)
 
 void setup()
 {
@@ -46,7 +57,98 @@ void setup()
   Serial.begin(38400);
 }
 
-int read_tx ()
+void alecto_ws1700()
+{
+  int p;
+  for (p=0; p<100; p++)
+  {
+    dur=pulseIn(PIN, LOW);
+    if ((dur>AEP_MIN) && (dur<AEP_MAX))
+      break;
+  }
+  if (p==100)
+    return;
+
+  byte v = 0;
+  for (int i=0; i<4; i++)
+  {
+    v <<= 2;
+    dur=pulseIn(PIN, LOW);
+    if ((dur>ASP_MIN) && (dur<ASP_MAX))
+    {
+      v |= 2;
+    } else if ((dur>ALP_MIN) && (dur<ALP_MAX))
+    {
+      v |= 3;
+    }
+  }
+
+  if (v!=187) // 10111011b = 187d
+    return;
+
+  for (int i=0; i<32; i++)
+  {
+    dur=pulseIn(PIN, LOW);
+    if ((dur>ASP_MIN) && (dur<ASP_MAX))
+    {
+      bits[i] = 0;
+    } else if ((dur>ALP_MIN) && (dur<ALP_MAX))
+    {
+      bits[i] = 1;
+    }
+  }
+
+  dur=pulseIn(PIN, LOW);
+  if ((dur<AEP_MIN) || (dur>AEP_MAX))
+    return;
+
+  int h = 0;
+  int t = 0;
+  for (int i=0; i<32; i++)
+  {
+    if (i>11)
+    {
+      if (i>23)
+      {
+        h <<= 1;
+        h |= bits[i];
+      } else
+      {
+        t <<= 1;
+        t |= bits[i];
+      }
+    }
+  }
+
+  if (h ==0)
+    return;
+
+  if (t > 3840)
+      t -= 4096;
+
+  int channel = (bits[10]<<1) + bits[11];
+  if (channel == 3)  // 00=CH1, 01=CH2, 10=CH3, 11=Error
+    return;
+  channel += 1001;
+
+  Serial.print("TEMP,");
+  Serial.print(channel);
+  Serial.print(",");
+  Serial.print(t/10);
+  Serial.print(".");
+  Serial.println(abs(t%10));
+  Serial.print("HYGR,");
+  Serial.print(channel);
+  Serial.print(",");
+  Serial.println(h);
+  Serial.print("BATT,");
+  Serial.print(channel);
+  Serial.print(",");
+  Serial.println(bits[8]? "OK" : "KO");
+  delay(500); // Signal is repeated by sensor. If values are OK then additional transmissions can be ignored.
+}
+
+int read_tx()
 {
   for (int i=0; i<11; i++)
     nibble[i] = 0;
@@ -64,9 +166,17 @@ int read_tx ()
       v |= 1;  // Short Pulse => 1
     else if ((dur <= LP_MIN) || (dur >= LP_MAX))
       v = 0;  // Not Long Pulse => Reset
-  } while (v != 10);  // 00001010b = 10d
+  } while ((v != 10) && (v != 255));  // 00001010b = 10d
 
-  // Then we read all the remaining bits
+  // At least 8 short pulses => Alecto detected
+  if (v == 255)
+  {
+    alecto_ws1700();
+    return 1;
+  }
+
+  // Otherwise it is a Lacrosse TX...
+  // so we read all the remaining bits
   for (int i=8; i<44; i++)
   {
     nibble[i >> 2] <<= 1;
@@ -133,9 +243,7 @@ int read_tx ()
     Serial.println(val);
   }
 
-  delay(50); // Signal is repeated by sensor. if CRC is OK then additional transmissions can be ignored.
-  return 0;
+  delay(50); // Signal is repeated by sensor. If CRC is OK then additional transmissions can be ignored.
 }
- 
 
 void loop() { read_tx(); }
