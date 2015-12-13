@@ -25,6 +25,8 @@ THE SOFTWARE.
 // Decoder for La Crosse Weather Sensors TX2/TX3/TX4 with or without hygrometer
 // Partially based on work by Jean-Paul ROUBELAT - F6FBB http://www.f6fbb.org/domo/sensors/tx3_th.php
 // Partially based on work by Pilight http://wiki.pilight.org/doku.php/alecto_ws1700_v7_0
+// Partially based on work by SUI77 https://github.com/sui77/rc-switch
+// Partially based on work by Pilight https://wiki.pilight.org/doku.php/elro_he
 // Data is sent to Serial via the Debugging Library (on pin 2)
 // Version for Digispark http://digistump.com/category/1
 
@@ -40,10 +42,18 @@ THE SOFTWARE.
 // Should be ~ 3800uS (long - low for Alecto)
 #define ALP_MIN 3200
 #define ALP_MAX 4400
-// Should be ~ 9200uS (end - low for Alecto)
+// Should be ~ 9200uS (end - low for Alecto & RC-Switch Protocol 1)
 #define AEP_MIN 8600
 #define AEP_MAX 9800
-
+// Should be ~ 320uS (short - high for RC-Switch Protocol 1)
+#define RSP_MIN 270
+#define RSP_MAX 470
+// Should be ~ 960uS (long - high for RC-Switch Protocol 1)
+#define RLP_MIN 910
+#define RLP_MAX 1110
+// Should be ~ 9920uS (end - low for Alecto & RC-Switch Protocol 1)
+#define REP_MIN 9720
+#define REP_MAX 10520
 #define PIN 0 // From 433Mhz receiver
 
 unsigned long dur; // pulse duration
@@ -148,6 +158,67 @@ void alecto_ws1700()
   delay(500); // Signal is repeated by sensor. If values are OK then additional transmissions can be ignored.
 }
 
+void rc_switch()
+{
+  int p;
+  for (p=0; p<100; p++)
+  {
+    // Synchronise with the very long pulse
+    dur=pulseIn(PIN, LOW);
+    if ((dur>REP_MIN) && (dur<REP_MAX))
+      break;
+  }
+  if (p==100)
+    return;
+
+  // Read the dual-bits
+  for (int i=0; i<24; i++)
+  {
+    dur=pulseIn(PIN, LOW);
+    if ((dur>RSP_MIN) && (dur<RSP_MAX))
+    {
+      bits[i] = 0;
+    } else if ((dur>RLP_MIN) && (dur<RLP_MAX))
+    {
+      bits[i] = 1;
+    }
+  }
+
+  String addr = "";
+  String unit = "";
+  byte state = 0;
+  for (int i=0; i<24; i+=2)
+  {
+    if (bits[i] != 1)
+      return;
+    if (i<10)
+    {
+      if (bits[i+1])
+        addr += '1';
+      else
+        addr += '0';
+    }
+    else if (i<20)
+    {
+      if (bits[i+1])
+        unit += '1';
+      else
+        unit += '0';
+    }
+    else if (i==20)
+      state = bits[i+1];
+    else if (state == bits[i+1]) // Last bit should be "NOT state"
+      return;
+  }
+  Serial.print("RC,");
+  Serial.print(addr);
+  Serial.print(',');
+  Serial.print(unit);
+  Serial.print(',');
+  Serial.println(state? '1' : '0');
+  delay(500); // Signal is repeated by sensor. If values are OK then additional transmissions can be ignored.
+}
+
 int read_tx()
 {
   for (int i=0; i<11; i++)
@@ -158,20 +229,33 @@ int read_tx()
   // bits are garbled as long as it starts with 1010 with the correct
   // pulse timing.
   byte v = 0;
+  byte v2 = 0;
   do
   {
     v <<= 1;
+    v2 <<= 1;
     dur = pulseIn(PIN, HIGH);
     if ((dur > SP_MIN) && (dur < SP_MAX))
       v |= 1;  // Short Pulse => 1
     else if ((dur <= LP_MIN) || (dur >= LP_MAX))
       v = 0;  // Not Long Pulse => Reset
-  } while ((v != 10) && (v != 255));  // 00001010b = 10d
+    if (((dur > RSP_MIN) && (dur < RSP_MAX)) || ((dur > RLP_MIN) && (dur < RLP_MAX)))
+      v2 |= 1;  // RC-Switch Pulse => 1
+    else
+      v2 = 0;  // Reset
+  } while ((v != 10) && (v != 255) && (v2 != 255));  // 00001010b = 10d
 
   // At least 8 short pulses => Alecto detected
   if (v == 255)
   {
     alecto_ws1700();
+    return 1;
+  }
+
+  // At least 8 RC pulses => RC-Switch detected
+  if (v2 == 255)
+  {
+    rc_switch();
     return 1;
   }
 
