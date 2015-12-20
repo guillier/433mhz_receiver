@@ -24,34 +24,29 @@ furnished to do so, subject to the following conditions:
 """
 
 import re
+import rrdtool
 import serial
 import time
 
-serialPort = serial.Serial("/dev/ttyACM0", 38400, timeout=0)
-#serialPort = serial.Serial("/dev/ttyAMA0", 38400, timeout=0)
+serialPort = serial.Serial("/dev/ttyAMA0", 38400, timeout=0)
 
-while True:
+def read_values():
+    value = {}
     while serialPort.inWaiting():
-        time.sleep(0.01)  # Wait for complete transmission
         line = serialPort.readline().decode().strip()
-        print(line)
         m = re.match(r'TEMP,(\d+),(\d+\.\d)', line)
         if m:
-            print('temperature - device {} = {}'.format(m.group(1),
-                                                        m.group(2)))
+            value['temperature_device%s.rrd' % m.group(1)] = m.group(2)
         m = re.match(r'HYGR,(\d+),(\d+)', line)
         if m:
-            print('humidity - device {} = {}'.format(m.group(1),
-                                                     m.group(2)))
-        m = re.match(r'RC,(\d+),(\d+),(\d)', line)
-        if m:
-            binbtn = m.group(2)
-            btn = 'A' if binbtn[0] == '1' else ''
-            btn += 'B' if binbtn[1] == '1' else ''
-            btn += 'C' if binbtn[2] == '1' else ''
-            btn += 'D' if binbtn[3] == '1' else ''
-            btn += 'E' if binbtn[4] == '1' else ''
-            action = 'on' if m.group(3) == '1' else 'off'
-            print('remote - addr {} - button {} => {}'.format(m.group(1),
-                                                              btn,
-                                                              action))
+            value['humidity_device%s.rrd' % m.group(1)] = m.group(2)
+    return value
+
+while True:
+    time.sleep(60)
+    for (rrd, val) in read_values().items():
+       try:
+           rrdtool.update(rrd, 'N:%s' % val)
+       except:
+           print("Can't store value:", rrd, val)
+
