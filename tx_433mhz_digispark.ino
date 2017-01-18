@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2015 François GUILLIER <dev @ guillier . org>
+Copyright (c) 2015-2017 François GUILLIER <dev @ guillier . org>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -285,13 +285,9 @@ int read_tx()
 
   // Temperature is composed of nibbles #5 & #6 + #7 for the decimal part
   // There is also a offset of 50 deg Celcius.
-  int val = nibble[5] * 10 + nibble[6];
-  int vald = 0;
+  int val = nibble[5] * 100 + nibble[6] * 10 + nibble[7];
   if (type == 0)
-  {
-    val -= 50;
-    vald = nibble[7];
-  }
+    val -= 500;
 
   // Last nibble is CRC and should match 4 lowest bits of the arithmetic
   // addition of all the previous nibbles
@@ -315,16 +311,16 @@ int read_tx()
     Serial.print("TEMP,");
     Serial.print(device);
     Serial.print(",");
-    Serial.print(val);
+    Serial.print(val / 10);
     Serial.print(".");
-    Serial.println(vald);
+    Serial.println(abs(val % 10));
   }
   else
   {
     Serial.print("HYGR,");  
     Serial.print(device);
     Serial.print(",");
-    Serial.println(val);
+    Serial.println(val / 10);
   }
 
   delay(50); // Signal is repeated by sensor. If CRC is OK then additional transmissions can be ignored.
