@@ -311,7 +311,9 @@ int read_tx()
     Serial.print("TEMP,");
     Serial.print(device);
     Serial.print(",");
-    Serial.print(val / 10);
+    if (val < 0)
+        Serial.print("-");
+    Serial.print(abs(val / 10));
     Serial.print(".");
     Serial.println(abs(val % 10));
   }
